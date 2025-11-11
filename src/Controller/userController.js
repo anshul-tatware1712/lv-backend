@@ -29,50 +29,86 @@ export const getUser = async (req, res) => {
           },
         ],
       });
-    } else {
-      const existingDevice = user.devices.find(
-        (device) => device.deviceId === deviceId
-      );
 
-      if (existingDevice && existingDevice.isActive === false) {
-        return res.status(400).json({
-          success: false,
-          errorCode: 400,
-          message: "You have been logged out from another device",
-        });
-      } else {
-        const activeDevices = user.devices.filter((d) => d.isActive);
-
-        if (activeDevices.length >= 3) {
-          return res.status(403).json({
-            success: false,
-            errorCode: 403,
-            message:
-              "Maximum 3 devices allowed. Please logout from another device.",
-            user: {
-              userId: user.userId,
-              devices: user.devices.map((device) => ({
-                deviceId: device.deviceId,
-                deviceName: device.deviceName,
-                isActive: device.isActive,
-                createdAt: device.createdAt,
-              })),
-            },
-          });
-        }
-
-        user.devices.push({
-          deviceId,
-          deviceName: deviceName || "Unknown Device",
-          isActive: true,
-          createdAt: new Date(),
-        });
-      }
-
-      await user.save();
+      return res.json({
+        success: true,
+        message: "New user created successfully",
+        user: {
+          userId: user.userId,
+          email: user.email,
+          name: user.name,
+          phoneNumber: user.phoneNumber,
+          devices: user.devices,
+        },
+      });
     }
 
-    res.json({
+    const existingDevice = user.devices.find((d) => d.deviceId === deviceId);
+
+    if (existingDevice && existingDevice.isActive === false) {
+      user.devices = user.devices.filter((d) => d.deviceId !== deviceId);
+      await user.save();
+      return res.status(400).json({
+        success: false,
+        errorCode: 400,
+        message: "You have been logged out from another device",
+      });
+    }
+
+    const activeDevices = user.devices.filter((d) => d.isActive);
+
+    if (activeDevices.length >= 3 && !existingDevice) {
+      const oldestDevice = activeDevices.reduce((oldest, current) =>
+        oldest.createdAt < current.createdAt ? oldest : current
+      );
+
+      const deviceToLogout = user.devices.find(
+        (d) => d.deviceId === oldestDevice.deviceId
+      );
+      if (deviceToLogout) {
+        deviceToLogout.isActive = false;
+        deviceToLogout.loggedOutReason = "Exceeded device limit";
+        deviceToLogout.updatedAt = new Date();
+      }
+
+      user.devices.push({
+        deviceId,
+        deviceName: deviceName || "Unknown Device",
+        isActive: true,
+        createdAt: new Date(),
+      });
+
+      await user.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Oldest device logged out. New device logged in successfully.",
+        user: {
+          userId: user.userId,
+          email: user.email,
+          name: user.name,
+          phoneNumber: user.phoneNumber,
+          devices: user.devices,
+        },
+      });
+    }
+
+    if (!existingDevice) {
+      user.devices.push({
+        deviceId,
+        deviceName: deviceName || "Unknown Device",
+        isActive: true,
+        createdAt: new Date(),
+      });
+    } else {
+      existingDevice.isActive = true;
+      existingDevice.deviceName = deviceName || existingDevice.deviceName;
+      existingDevice.updatedAt = new Date();
+    }
+
+    await user.save();
+
+    return res.json({
       success: true,
       message: "User fetched successfully",
       user: {
@@ -80,17 +116,12 @@ export const getUser = async (req, res) => {
         email: user.email,
         name: user.name,
         phoneNumber: user.phoneNumber,
-        devices: user.devices.map((device) => ({
-          deviceId: device.deviceId,
-          deviceName: device.deviceName,
-          isActive: device.isActive,
-          createdAt: device.createdAt,
-        })),
+        devices: user.devices,
       },
     });
   } catch (error) {
     console.error("User error:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -118,16 +149,17 @@ export const updateUser = async (req, res) => {
 
     if (name !== undefined) user.name = name;
     if (phoneNumber !== undefined) user.phoneNumber = phoneNumber;
+
     await user.save();
 
-    res.json({
+    return res.json({
       success: true,
       message: "User updated successfully",
       user,
     });
   } catch (error) {
     console.error("Update user error:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Server error",
     });
@@ -156,17 +188,19 @@ export const logout = async (req, res) => {
     const device = user.devices.find((d) => d.deviceId === deviceId);
     if (device) {
       device.isActive = false;
+      device.loggedOutReason = "User initiated logout";
+      device.updatedAt = new Date();
     }
 
     await user.save();
 
-    res.json({
+    return res.json({
       success: true,
       message: "Logged out successfully",
     });
   } catch (error) {
     console.error("Logout error:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Server error",
     });

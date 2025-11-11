@@ -1,49 +1,20 @@
 import mongoose from "mongoose";
 
-const deviceSessionSchema = new mongoose.Schema({
-  deviceId: {
-    type: String,
-    required: true,
-  },
-  deviceName: {
-    type: String,
-    required: true,
-  },
-  isActive: {
-    type: Boolean,
-    default: true,
-  },
-}, {
-  timestamps: true,
+const deviceSchema = new mongoose.Schema({
+  deviceId: { type: String, required: true },
+  deviceName: { type: String, default: "Unknown Device" },
+  isActive: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+  loggedOutReason: { type: String, default: null },
 });
 
-const userSessionSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: String,
-      required: true,
-      unique: true,
-    },
-    email: {
-      type: String,
-      required: true,
-    },
-    name: {
-      type: String,
-    },
-    phoneNumber: {
-      type: String,
-    },
-    devices: [deviceSessionSchema],
-    maxDevices: {
-      type: Number,
-      default: 3,
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
+const userSchema = new mongoose.Schema({
+  userId: { type: String, unique: true, required: true },
+  email: { type: String, unique: true, required: true },
+  name: { type: String, default: null },
+  phoneNumber: { type: String, default: null },
+  devices: [deviceSchema],
+});
 
-const User = mongoose.model("User", userSessionSchema);
-export default User;
+export default mongoose.model("User", userSchema);
