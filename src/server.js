@@ -29,7 +29,6 @@ const corsOptions = {
   maxAge: 86400
 };
 
-// This middleware handles both regular requests AND preflight OPTIONS
 app.use(cors(corsOptions));
 
 app.use(express.json());
